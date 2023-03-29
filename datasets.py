@@ -7,7 +7,7 @@ from torch.utils.data.dataset import Dataset
 
 class GeometricDataset(Dataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=2.5,
+            self, im_size, n_samples=1000, scale_ratio=3,
             min_back=100, max_back=200, fore_ratio=2, seed=None
     ):
         self.len = n_samples * 2
@@ -83,7 +83,7 @@ class GeometricDataset(Dataset):
 
 class ShapesDataset(GeometricDataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=2.5,
+            self, im_size, n_samples=1000, scale_ratio=3,
             min_back=100, max_back=200, fore_ratio=2, seed=None
     ):
         # Init
@@ -138,7 +138,7 @@ class ShapesDataset(GeometricDataset):
 
 class LocationDataset(GeometricDataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=2.5,
+            self, im_size, n_samples=1000, scale_ratio=3,
             min_back=100, max_back=200, fore_ratio=2, seed=None
     ):
         # Init
@@ -283,5 +283,82 @@ class ScaleDataset(GeometricDataset):
                 mask = self._sphere_mask(x, y, z, cx, cy, cz, r / self.scale)
 
             data[mask] = foreground[mask]
+
+        return data, target_data
+
+
+class RotationDataset(GeometricDataset):
+    def __init__(
+            self, im_size, n_samples=1000, scale_ratio=3,
+            min_back=100, max_back=200, fore_ratio=2, seed=None
+    ):
+        # Init
+        super().__init__(
+            im_size, n_samples, 1, min_back, max_back, fore_ratio,
+            seed
+        )
+        self.scale = scale_ratio
+        self.shapes = []
+        self.masks = []
+        self.labels = []
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            for i in range(self.len):
+                cx, cy, cz, s = self._coordinates()
+                x, y, z = self._image_grid()
+                background, foreground = self._gaussian_images()
+
+                if i < n_samples:
+                    # Normal cubes
+                    self.labels.append(0)
+                    angle = np.random.normal(0, np.pi * 0.05)
+                else:
+                    # Rotated cubes
+                    self.labels.append(1)
+                    angle = np.random.normal(np.pi / 4, np.pi * 0.05)
+
+                x, y, z = self._rotate_grid(cx, cy, cz, angle)
+                mask = self._cube_mask(x, y, z, cx, cy, cz, s)
+
+                background[mask] = foreground[mask]
+                self.masks.append(mask)
+                self.shapes.append(background)
+
+    def _rotate_grid(self, x0, y0, z0, angle):
+        x, y, z = self._image_grid()
+        x_norm = x - x0
+        y_norm = y - y0
+        z_norm = z - z0
+        cos = np.cos(angle)
+        sin = np.sin(angle)
+        rot_x = x_norm * cos + y_norm * sin * cos + z_norm * sin ** 2
+        rot_y = - x_norm * sin + y_norm * cos ** 2 + z_norm * sin * cos
+        rot_z = - y_norm * sin + z_norm * cos
+
+        return rot_x + x0, rot_y + y0, rot_z + z0
+
+    def __getitem__(self, index):
+        if len(self.shapes) > 0:
+            data = self.shapes[index]
+            target_data = (self.labels[index], self.masks[index])
+        else:
+            cx, cy, cz, s = self._coordinates()
+            x, y, z = self._image_grid()
+            data, foreground = self._gaussian_images()
+
+            if index < (self.len / 2):
+                # Normal cube
+                target_data = 0
+                angle = np.random.normal(0, np.pi * 0.01)
+            else:
+                # Rotated cube
+                target_data = 1
+                angle = np.random.normal(np.pi / 4, np.pi * 0.01)
+
+            x, y, z = self._rotate_grid(cx, cy, cz, angle)
+            mask = self._cube_mask(x, y, z, cx, cy, cz, s)
+
+            data[mask] = foreground[mask]
+            print(np.sum(mask))
 
         return data, target_data
