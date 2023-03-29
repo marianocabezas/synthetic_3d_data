@@ -21,9 +21,12 @@ class GeometricDataset(Dataset):
 
     def _coordinates(self):
         side_range = self.max_side - self.min_side
-        cx = 0.5 * self.max_x + (np.random.rand(1) * self.max_x * 0.25)
-        cy = 0.5 * self.max_y + (np.random.rand(1) * self.max_y * 0.25)
-        cz = 0.5 * self.max_z + (np.random.rand(1) * self.max_z * 0.25)
+        x_offset = (2 * np.random.rand(1) - 1) * self.max_x * 0.25
+        y_offset = (2 * np.random.rand(1) - 1) * self.max_y * 0.25
+        z_offset = (2 * np.random.rand(1) - 1) * self.max_z * 0.25
+        cx = 0.5 * self.max_x + x_offset
+        cy = 0.5 * self.max_y + y_offset
+        cz = 0.5 * self.max_z + z_offset
         s = min(
             cx - 1, cy - 1, cz - 1,
             self.max_x - cx - 1,
@@ -161,11 +164,10 @@ class LocationDataset(GeometricDataset):
                     # Spheres (bottom-right)
                     self.labels.append(1)
                     mask = self._sphere_mask(
-                        x, y, z,
-                        cx + self.max_x / 2,
-                        cy + self.max_y / 2,
-                        cz + self.max_z / 2,
-                        r
+                        x + self.max_x / 2,
+                        y + self.max_y / 2,
+                        z + self.max_z / 2,
+                        cx, cy, cz, r
                     )
 
                 background[mask] = foreground[mask]
@@ -174,15 +176,18 @@ class LocationDataset(GeometricDataset):
 
     def _coordinates(self):
         side_range = self.max_side - self.min_side
-        cx = self.max_x * 0.25 + np.random.rand(1) * self.max_x * 0.1
-        cy = self.max_y * 0.25 + np.random.rand(1) * self.max_y * 0.1
-        cz = self.max_z * 0.25 + np.random.rand(1) * self.max_z * 0.1
+        x_offset = (2 * np.random.rand(1) - 1) * self.max_x * 0.1
+        y_offset = (2 * np.random.rand(1) - 1) * self.max_y * 0.1
+        z_offset = (2 * np.random.rand(1) - 1) * self.max_z * 0.1
+        cx = self.max_x * 0.25 + x_offset
+        cy = self.max_y * 0.25 + y_offset
+        cz = self.max_z * 0.25 + z_offset
         r = min(
             cx - 1, cy - 1, cz - 1,
             self.max_x * 0.5 - cx - 1,
             self.max_y * 0.5 - cy - 1,
             self.max_z * 0.5 - cz - 1,
-            np.random.rand(1) * side_range + self.min_side
+            0.5 * (np.random.rand(1) * side_range + self.min_side)
         )
 
         return cx, cy, cz, r
@@ -209,6 +214,73 @@ class LocationDataset(GeometricDataset):
                     cz + self.max_z / 2,
                     r
                 )
+
+            data[mask] = foreground[mask]
+
+        return data, target_data
+
+
+class ScaleDataset(GeometricDataset):
+    def __init__(
+            self, im_size, n_samples=1000, scale_ratio=3,
+            min_back=100, max_back=200, fore_ratio=2, seed=None
+    ):
+        # Init
+        super().__init__(
+            im_size, n_samples, 1, min_back, max_back, fore_ratio,
+            seed
+        )
+        self.scale = scale_ratio
+        self.shapes = []
+        self.masks = []
+        self.labels = []
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            for i in range(self.len):
+                cx, cy, cz, r = self._coordinates()
+                background, foreground = self._gaussian_images()
+                x, y, z = self._image_grid()
+
+                if i < n_samples:
+                    # Big spheres
+                    self.labels.append(0)
+                    mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+                else:
+                    # Small spheres
+                    self.labels.append(1)
+                    mask = self._sphere_mask(x, y, z, cx, cy, cz, r / self.scale)
+
+                background[mask] = foreground[mask]
+                self.masks.append(mask)
+                self.shapes.append(background)
+
+    def _coordinates(self):
+        x_offset = (2 * np.random.rand(1) - 1) * self.max_x * 0.25
+        y_offset = (2 * np.random.rand(1) - 1) * self.max_y * 0.25
+        z_offset = (2 * np.random.rand(1) - 1) * self.max_z * 0.25
+        cx = self.max_x * 0.5 + x_offset
+        cy = self.max_y * 0.5 + y_offset
+        cz = self.max_z * 0.5 + z_offset
+        r = np.random.normal(self.max_side * 0.25, self.max_side * 0.05)
+
+        return cx, cy, cz, r
+
+    def __getitem__(self, index):
+        if len(self.shapes) > 0:
+            data = self.shapes[index]
+            target_data = (self.labels[index], self.masks[index])
+        else:
+            cx, cy, cz, r = self._coordinates()
+            data, foreground = self._gaussian_images()
+            x, y, z = self._image_grid()
+            if index < (self.len / 2):
+                # Big spheres
+                target_data = 0
+                mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+            else:
+                # Small spheres
+                target_data = 1
+                mask = self._sphere_mask(x, y, z, cx, cy, cz, r / self.scale)
 
             data[mask] = foreground[mask]
 
