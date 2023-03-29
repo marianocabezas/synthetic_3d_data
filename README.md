@@ -1,7 +1,7 @@
 # Synthetic 3D data
 Synthetic dataset experiments for image classification networks
-- [ ] Shape differences - https://github.com/marianocabezas/synthetic_3d_data/issues/1
-- [ ] Location differences - https://github.com/marianocabezas/synthetic_3d_data/issues/2
+- [x] Shape differences - https://github.com/marianocabezas/synthetic_3d_data/issues/1
+- [x] Location differences - https://github.com/marianocabezas/synthetic_3d_data/issues/2
 - [ ] Scale differences - https://github.com/marianocabezas/synthetic_3d_data/issues/3
 - [ ] Rotation differences - https://github.com/marianocabezas/synthetic_3d_data/issues/4
 - [ ] Texture differences (global) - https://github.com/marianocabezas/synthetic_3d_data/issues/5
