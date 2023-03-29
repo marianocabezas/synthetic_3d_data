@@ -1,6 +1,5 @@
 import numpy as np
 from torch.utils.data.dataset import Dataset
-from utils import get_bb
 
 
 ''' Datasets '''
@@ -8,8 +7,8 @@ from utils import get_bb
 
 class GeometricDataset(Dataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=10,
-            min_back=100, max_back=200, fore_ratio=1.5, seed=None
+            self, im_size, n_samples=1000, scale_ratio=2.5,
+            min_back=100, max_back=200, fore_ratio=2, seed=None
     ):
         self.len = n_samples * 2
         self.max_x, self.max_y, self.max_z = im_size
@@ -22,10 +21,16 @@ class GeometricDataset(Dataset):
 
     def _coordinates(self):
         side_range = self.max_side - self.min_side
-        cx = np.random.rand(1) * 0.5 * self.max_x + (self.max_x * 0.25)
-        cy = np.random.rand(1) * 0.5 * self.max_y + (self.max_y * 0.25)
-        cz = np.random.rand(1) * 0.5 * self.max_z + (self.max_z * 0.25)
-        s = np.random.rand(1) * side_range + self.min_side
+        cx = 0.5 * self.max_x + (np.random.rand(1) * self.max_x * 0.25)
+        cy = 0.5 * self.max_y + (np.random.rand(1) * self.max_y * 0.25)
+        cz = 0.5 * self.max_z + (np.random.rand(1) * self.max_z * 0.25)
+        s = min(
+            cx - 1, cy - 1, cz - 1,
+            self.max_x - cx - 1,
+            self.max_y - cy - 1,
+            self.max_z - cz - 1,
+            np.random.rand(1) * side_range + self.min_side
+        )
 
         return cx, cy, cz, s
 
@@ -50,9 +55,15 @@ class GeometricDataset(Dataset):
         )
 
     def _cube_mask(self, x, y, z, x0, y0, z0, side):
-        x_mask = np.logical_and(x > x0, x < (x0 + side))
-        y_mask = np.logical_and(y > y0, y < (y0 + side))
-        z_mask = np.logical_and(z > z0, z < (z0 + side))
+        x_mask = np.logical_and(
+            x > (x0 - side / 2), x < (x0 + side / 2)
+        )
+        y_mask = np.logical_and(
+            y > (y0 - side / 2), y < (y0 + side / 2)
+        )
+        z_mask = np.logical_and(
+            z > (z0 - side / 2), z < (z0 + side / 2)
+        )
         mask = np.logical_and(
             np.logical_and(x_mask, y_mask), z_mask
         )
@@ -69,8 +80,8 @@ class GeometricDataset(Dataset):
 
 class ShapesDataset(GeometricDataset):
     def __init__(
-        self, im_size, n_samples=1000, scale_ratio=10,
-        min_back=100, max_back=200, fore_ratio=1.5, seed=None
+            self, im_size, n_samples=1000, scale_ratio=2.5,
+            min_back=100, max_back=200, fore_ratio=2, seed=None
     ):
         # Init
         super().__init__(
