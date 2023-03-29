@@ -305,7 +305,6 @@ class RotationDataset(GeometricDataset):
             np.random.seed(self.seed)
             for i in range(self.len):
                 cx, cy, cz, s = self._coordinates()
-                x, y, z = self._image_grid()
                 background, foreground = self._gaussian_images()
 
                 if i < n_samples:
@@ -343,7 +342,6 @@ class RotationDataset(GeometricDataset):
             target_data = (self.labels[index], self.masks[index])
         else:
             cx, cy, cz, s = self._coordinates()
-            x, y, z = self._image_grid()
             data, foreground = self._gaussian_images()
 
             if index < (self.len / 2):
