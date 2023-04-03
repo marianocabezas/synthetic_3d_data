@@ -21,6 +21,12 @@ class GeometricDataset(Dataset):
         self.max_back = max_back
         self.fore_ratio = fore_ratio
         self.seed = seed
+        self.x, self.y, self.z = np.meshgrid(
+            np.arange(0, self.max_x),
+            np.arange(0, self.max_y),
+            np.arange(0, self.max_z),
+            indexing='ij'
+        )
 
     def _coordinates(self):
         side_range = self.max_side - self.min_side
@@ -52,32 +58,44 @@ class GeometricDataset(Dataset):
 
         return background, foreground
 
-    def _image_grid(self):
-        return np.meshgrid(
-            np.arange(0, self.max_x),
-            np.arange(0, self.max_y),
-            np.arange(0, self.max_z),
-            indexing='ij'
-        )
-
-    def _cube_mask(self, x, y, z, x0, y0, z0, side):
-        x_mask = np.logical_and(
-            x > (x0 - side / 2), x < (x0 + side / 2)
-        )
-        y_mask = np.logical_and(
-            y > (y0 - side / 2), y < (y0 + side / 2)
-        )
-        z_mask = np.logical_and(
-            z > (z0 - side / 2), z < (z0 + side / 2)
-        )
+    def _cube_mask(self, x0, y0, z0, side, x=None, y=None, z=None):
+        def side_mask(grid, coord):
+            mask = np.logical_and(
+                grid > (coord - side / 2), grid < (coord + side / 2)
+            )
+            return mask
+        if x is None:
+            x_mask = side_mask(self.x, x0)
+        else:
+            x_mask = side_mask(x, x0)
+        if y is None:
+            y_mask = side_mask(self.y, y0)
+        else:
+            y_mask = side_mask(y, y0)
+        if z is None:
+            z_mask = side_mask(self.z, z0)
+        else:
+            z_mask = side_mask(z, z0)
         mask = np.logical_and(
             np.logical_and(x_mask, y_mask), z_mask
         )
         return mask
 
-    def _sphere_mask(self, x, y, z, a, b, c, radius):
+    def _sphere_mask(self, a, b, c, radius, x=None, y=None, z=None):
         # (x - a)² + (y - b)² + (z - c)² = r²
-        mask = (x - a) ** 2 + (y - b) ** 2 + (z - c) ** 2 - radius ** 2 <= 0
+        if x is None:
+            x_dist = (self.x - a) ** 2
+        else:
+            x_dist = (x - a) ** 2
+        if y is None:
+            y_dist = (self.y - b) ** 2
+        else:
+            y_dist = (y - b) ** 2
+        if z is None:
+            z_dist = (self.z - c) ** 2
+        else:
+            z_dist = (z - c) ** 2
+        mask = x_dist + y_dist + z_dist - radius ** 2 <= 0
         return mask
 
     def __len__(self):
@@ -112,16 +130,15 @@ class ShapesDataset(GeometricDataset):
                 )
                 cx, cy, cz, s = self._coordinates()
                 background, foreground = self._gaussian_images()
-                x, y, z = self._image_grid()
 
                 if i < n_samples:
                     # Cube
                     self.labels.append(0)
-                    mask = self._cube_mask(x, y, z, cx, cy, cz, s)
+                    mask = self._cube_mask(cx, cy, cz, s)
                 else:
                     # Sphere
                     self.labels.append(1)
-                    mask = self._sphere_mask(x, y, z, cx, cy, cz, s / 2)
+                    mask = self._sphere_mask(cx, cy, cz, s / 2)
 
                 background[mask] = foreground[mask]
                 self.masks.append(mask)
@@ -134,15 +151,14 @@ class ShapesDataset(GeometricDataset):
         else:
             cx, cy, cz, s = self._coordinates()
             data, foreground = self._gaussian_images()
-            x, y, z = self._image_grid()
             if index < (self.len / 2):
                 # Cube
                 target_data = 0
-                mask = self._cube_mask(x, y, z, cx, cy, cz, s)
+                mask = self._cube_mask(cx, cy, cz, s)
             else:
                 # Sphere
                 target_data = 1
-                mask = self._sphere_mask(x, y, z, cx, cy, cz, s / 2)
+                mask = self._sphere_mask(cx, cy, cz, s / 2)
 
             data[mask] = foreground[mask]
 
@@ -177,20 +193,19 @@ class LocationDataset(GeometricDataset):
                 )
                 cx, cy, cz, r = self._coordinates()
                 background, foreground = self._gaussian_images()
-                x, y, z = self._image_grid()
 
                 if i < n_samples:
                     # Sphere (top-left)
                     self.labels.append(0)
-                    mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+                    mask = self._sphere_mask(cx, cy, cz, r)
                 else:
                     # Sphere (bottom-right)
                     self.labels.append(1)
                     mask = self._sphere_mask(
-                        x + self.max_x / 2,
-                        y + self.max_y / 2,
-                        z + self.max_z / 2,
-                        cx, cy, cz, r
+                        cx, cy, cz, r,
+                        self.x + self.max_x / 2,
+                        self.y + self.max_y / 2,
+                        self.z + self.max_z / 2,
                     )
 
                 background[mask] = foreground[mask]
@@ -222,20 +237,18 @@ class LocationDataset(GeometricDataset):
         else:
             cx, cy, cz, r = self._coordinates()
             data, foreground = self._gaussian_images()
-            x, y, z = self._image_grid()
             if index < (self.len / 2):
                 # Sphere (top-left)
                 target_data = 0
-                mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+                mask = self._sphere_mask(cx, cy, cz, r)
             else:
                 # Sphere (bottom-right)
                 target_data = 1
                 mask = self._sphere_mask(
-                    x, y, z,
-                    cx + self.max_x / 2,
-                    cy + self.max_y / 2,
-                    cz + self.max_z / 2,
-                    r
+                    cx, cy, cz, r,
+                    self.x + self.max_x / 2,
+                    self.y + self.max_y / 2,
+                    self.z + self.max_z / 2,
                 )
 
             data[mask] = foreground[mask]
@@ -272,16 +285,15 @@ class ScaleDataset(GeometricDataset):
                 )
                 cx, cy, cz, r = self._coordinates()
                 background, foreground = self._gaussian_images()
-                x, y, z = self._image_grid()
 
                 if i < n_samples:
                     # Big sphere
                     self.labels.append(0)
-                    mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+                    mask = self._sphere_mask(cx, cy, cz, r)
                 else:
                     # Small sphere
                     self.labels.append(1)
-                    mask = self._sphere_mask(x, y, z, cx, cy, cz, r / self.scale)
+                    mask = self._sphere_mask(cx, cy, cz, r / self.scale)
 
                 background[mask] = foreground[mask]
                 self.masks.append(mask)
@@ -305,15 +317,14 @@ class ScaleDataset(GeometricDataset):
         else:
             cx, cy, cz, r = self._coordinates()
             data, foreground = self._gaussian_images()
-            x, y, z = self._image_grid()
             if index < (self.len / 2):
                 # Big sphere
                 target_data = 0
-                mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+                mask = self._sphere_mask(cx, cy, cz, r)
             else:
                 # Small sphere
                 target_data = 1
-                mask = self._sphere_mask(x, y, z, cx, cy, cz, r / self.scale)
+                mask = self._sphere_mask(cx, cy, cz, r / self.scale)
 
             data[mask] = foreground[mask]
 
@@ -366,10 +377,9 @@ class RotationDataset(GeometricDataset):
                 self.shapes.append(background)
 
     def _rotate_grid(self, x0, y0, z0, angle):
-        x, y, z = self._image_grid()
-        x_norm = x - x0
-        y_norm = y - y0
-        z_norm = z - z0
+        x_norm = self.x - x0
+        y_norm = self.y - y0
+        z_norm = self.z - z0
         cos = np.cos(angle)
         sin = np.sin(angle)
         rot_x = x_norm * cos + y_norm * sin * cos + z_norm * sin ** 2
@@ -431,7 +441,6 @@ class GradientDataset(GeometricDataset):
                     ), end='\r'
                 )
                 cx, cy, cz, r = self._coordinates()
-                x, y, z = self._image_grid()
                 background, foreground = self._gaussian_images()
 
                 if i < n_samples:
@@ -446,15 +455,14 @@ class GradientDataset(GeometricDataset):
                         0, np.max(foreground) - (self.max_back - self.min_back)
                     )
 
-                mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+                mask = self._sphere_mask(cx, cy, cz, r)
 
                 background[mask] = foreground[mask]
                 self.masks.append(mask)
                 self.shapes.append(background)
 
     def _gradient(self, cx, cy, cz, r):
-        x, y, z = self._image_grid()
-        c_dist = (x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2
+        c_dist = (self.x - cx) ** 2 + (self.y - cy) ** 2 + (self.z - cz) ** 2
         gradient = np.clip(r ** 2 - c_dist, 0, r ** 2) / (r ** 2)
 
         return gradient
@@ -465,7 +473,6 @@ class GradientDataset(GeometricDataset):
             target_data = (self.labels[index], self.masks[index])
         else:
             cx, cy, cz, r = self._coordinates()
-            x, y, z = self._image_grid()
             data, foreground = self._gaussian_images()
 
             if index < (self.len / 2):
@@ -480,7 +487,7 @@ class GradientDataset(GeometricDataset):
                     0, np.max(foreground) - (self.max_back - self.min_back)
                 )
 
-            mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+            mask = self._sphere_mask(cx, cy, cz, r)
 
             data[mask] = foreground[mask] + data[mask]
 
@@ -515,7 +522,6 @@ class ContrastDataset(GradientDataset):
                     ), end='\r'
                 )
                 cx, cy, cz, r = self._coordinates()
-                x, y, z = self._image_grid()
                 background, foreground = self._gaussian_images()
                 gradient = self._gradient(cx, cy, cz, r)
 
@@ -535,7 +541,7 @@ class ContrastDataset(GradientDataset):
                         0, np.max(foreground) - (self.max_back - self.min_back)
                     )
 
-                mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+                mask = self._sphere_mask(cx, cy, cz, r)
 
                 background[mask] = foreground[mask]
                 self.masks.append(mask)
@@ -547,7 +553,6 @@ class ContrastDataset(GradientDataset):
             target_data = (self.labels[index], self.masks[index])
         else:
             cx, cy, cz, r = self._coordinates()
-            x, y, z = self._image_grid()
             data, foreground = self._gaussian_images()
             gradient = self._gradient(cx, cy, cz, r)
 
@@ -566,7 +571,7 @@ class ContrastDataset(GradientDataset):
                     0, np.max(foreground) - (self.max_back - self.min_back)
                 )
 
-            mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+            mask = self._sphere_mask(cx, cy, cz, r)
 
             data[mask] = foreground[mask] + data[mask]
 
@@ -588,31 +593,30 @@ class ParcellationDataset(ContrastDataset):
         )
 
     def _gradient(self, cx, cy, cz, r):
-        x, y, z = self._image_grid()
-        core_x, core_y, core_z = self._elastic_shape(x, y, z)
+        core_x, core_y, core_z = self._elastic_shape()
         core_d = (core_x - cx) ** 2 + (core_y - cy) ** 2 + (core_z - cz) ** 2
         core = (core_d < (r ** 2) / 9).astype(np.float32)
-        mid_x, mid_y, mid_z = self._elastic_shape(x, y, z)
+        mid_x, mid_y, mid_z = self._elastic_shape()
         mid_d = (mid_x - cx) ** 2 + (mid_y - cy) ** 2 + (mid_z - cz) ** 2
         mid = (mid_d < (r ** 2) * 4 / 9).astype(np.float32)
-        bound_d = (x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2
+        bound_d = (self.x - cx) ** 2 + (self.y - cy) ** 2 + (self.z - cz) ** 2
         bound = (bound_d < (r ** 2)).astype(np.float32)
         gradient = (4 * core + 3 * mid + 2 * bound) / 7
 
         return gradient
 
-    def _elastic_shape(self, x, y, z):
+    def _elastic_shape(self):
         dx = gaussian_filter(
-            2 * np.random.rand(*x.shape) - 1,
+            2 * np.random.rand(*self.x.shape) - 1,
             self.sigma, mode='constant', cval=0
         ) * self.alpha
         dy = gaussian_filter(
-            2 * np.random.rand(*y.shape) - 1,
+            2 * np.random.rand(*self.y.shape) - 1,
             self.sigma, mode='constant', cval=0
         ) * self.alpha
         dz = gaussian_filter(
-            2 * np.random.rand(*z.shape) - 1,
+            2 * np.random.rand(*self.z.shape) - 1,
             self.sigma, mode='constant', cval=0
         ) * self.alpha
-        return x + dx, y + dy, z + dz
+        return self.x + dx, self.y + dy, self.z + dz
 
