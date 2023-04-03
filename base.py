@@ -503,8 +503,8 @@ class BaseModel(nn.Module):
             100 * (batch_i + 1) / n_batches, progress_s + remainder_s,
             loss_name, b_loss, mean_loss, time_s, eta_s + '\033[0m'
         )
-        print('\033[K', end='', flush=True)
-        print(batch_s, end='\r', flush=True)
+        print(' '.join([' '] * 300), end='\r')
+        print('\033[K' + batch_s, end='\r', flush=True)
 
     @staticmethod
     def print_batch(pi, n_patches, i, n_cases, t_in, t_case_in):
@@ -526,8 +526,8 @@ class BaseModel(nn.Module):
             100 * (pi + 1) / n_patches,
             progress_s, remainder_s, time_s, eta_s + '\033[0m'
         )
-        print('\033[K', end='', flush=True)
-        print(batch_s, end='\r', flush=True)
+        print(' '.join([' '] * 300), end='\r')
+        print('\033[K' + batch_s, end='\r', flush=True)
 
     def freeze(self):
         """
