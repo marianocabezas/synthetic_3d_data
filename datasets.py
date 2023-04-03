@@ -120,7 +120,7 @@ class ShapesDataset(GeometricDataset):
             np.random.seed(self.seed)
             for i in range(self.len):
                 time_elapsed = time.time() - init_start
-                eta = self.len * time_elapsed / (i + 1)
+                eta = (self.len - (i + 1)) * time_elapsed / (i + 1)
                 print(
                     '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
                         i + 1, self.len,
