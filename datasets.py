@@ -1,6 +1,8 @@
+import time
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 from torch.utils.data.dataset import Dataset
+from utils import time_to_string
 
 
 ''' Datasets '''
@@ -95,9 +97,19 @@ class ShapesDataset(GeometricDataset):
         self.shapes = []
         self.masks = []
         self.labels = []
+        init_start = time.time()
         if self.seed is not None:
             np.random.seed(self.seed)
             for i in range(self.len):
+                time_elapsed = time.time() - init_start
+                eta = self.len * time_elapsed / (i + 1)
+                print(
+                    '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
+                        i + 1, self.len,
+                        time_to_string(time_elapsed),
+                        time_to_string(eta),
+                    ), end='\r'
+                )
                 cx, cy, cz, s = self._coordinates()
                 background, foreground = self._gaussian_images()
                 x, y, z = self._image_grid()
@@ -150,9 +162,19 @@ class LocationDataset(GeometricDataset):
         self.shapes = []
         self.masks = []
         self.labels = []
+        init_start = time.time()
         if self.seed is not None:
             np.random.seed(self.seed)
             for i in range(self.len):
+                time_elapsed = time.time() - init_start
+                eta = self.len * time_elapsed / (i + 1)
+                print(
+                    '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
+                        i + 1, self.len,
+                        time_to_string(time_elapsed),
+                        time_to_string(eta),
+                    ), end='\r'
+                )
                 cx, cy, cz, r = self._coordinates()
                 background, foreground = self._gaussian_images()
                 x, y, z = self._image_grid()
@@ -235,9 +257,19 @@ class ScaleDataset(GeometricDataset):
         self.shapes = []
         self.masks = []
         self.labels = []
+        init_start = time.time()
         if self.seed is not None:
             np.random.seed(self.seed)
             for i in range(self.len):
+                time_elapsed = time.time() - init_start
+                eta = self.len * time_elapsed / (i + 1)
+                print(
+                    '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
+                        i + 1, self.len,
+                        time_to_string(time_elapsed),
+                        time_to_string(eta),
+                    ), end='\r'
+                )
                 cx, cy, cz, r = self._coordinates()
                 background, foreground = self._gaussian_images()
                 x, y, z = self._image_grid()
@@ -301,9 +333,19 @@ class RotationDataset(GeometricDataset):
         self.shapes = []
         self.masks = []
         self.labels = []
+        init_start = time.time()
         if self.seed is not None:
             np.random.seed(self.seed)
             for i in range(self.len):
+                time_elapsed = time.time() - init_start
+                eta = self.len * time_elapsed / (i + 1)
+                print(
+                    '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
+                        i + 1, self.len,
+                        time_to_string(time_elapsed),
+                        time_to_string(eta),
+                    ), end='\r'
+                )
                 cx, cy, cz, s = self._coordinates()
                 background, foreground = self._gaussian_images()
 
@@ -375,9 +417,19 @@ class GradientDataset(GeometricDataset):
         self.masks = []
         self.labels = []
 
+        init_start = time.time()
         if self.seed is not None:
             np.random.seed(self.seed)
             for i in range(self.len):
+                time_elapsed = time.time() - init_start
+                eta = self.len * time_elapsed / (i + 1)
+                print(
+                    '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
+                        i + 1, self.len,
+                        time_to_string(time_elapsed),
+                        time_to_string(eta),
+                    ), end='\r'
+                )
                 cx, cy, cz, r = self._coordinates()
                 x, y, z = self._image_grid()
                 background, foreground = self._gaussian_images()
@@ -449,9 +501,19 @@ class ContrastDataset(GradientDataset):
         self.masks = []
         self.labels = []
 
+        init_start = time.time()
         if self.seed is not None:
             np.random.seed(self.seed)
             for i in range(self.len):
+                time_elapsed = time.time() - init_start
+                eta = self.len * time_elapsed / (i + 1)
+                print(
+                    '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
+                        i + 1, self.len,
+                        time_to_string(time_elapsed),
+                        time_to_string(eta),
+                    ), end='\r'
+                )
                 cx, cy, cz, r = self._coordinates()
                 x, y, z = self._image_grid()
                 background, foreground = self._gaussian_images()
