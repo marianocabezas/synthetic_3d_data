@@ -140,4 +140,4 @@ class SimpleResNet(BaseModel):
         # final_features = torch.mean(features.flatten(2), dim=2)
         final_features = torch.max(features.flatten(2), dim=2)[0]
         logits = self.classifier(final_features)
-        return torch.sigmoid(logits)
+        return torch.sigmoid(logits).flatten()
