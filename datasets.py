@@ -8,7 +8,7 @@ from torch.utils.data.dataset import Dataset
 class GeometricDataset(Dataset):
     def __init__(
             self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=2, seed=None
+            min_back=100, max_back=200, fore_ratio=3, seed=None
     ):
         self.len = n_samples * 2
         self.max_x, self.max_y, self.max_z = im_size
@@ -84,7 +84,7 @@ class GeometricDataset(Dataset):
 class ShapesDataset(GeometricDataset):
     def __init__(
             self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=2, seed=None
+            min_back=100, max_back=200, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
@@ -139,7 +139,7 @@ class ShapesDataset(GeometricDataset):
 class LocationDataset(GeometricDataset):
     def __init__(
             self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=2, seed=None
+            min_back=100, max_back=200, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
@@ -223,7 +223,7 @@ class LocationDataset(GeometricDataset):
 class ScaleDataset(GeometricDataset):
     def __init__(
             self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=2, seed=None
+            min_back=100, max_back=200, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
@@ -290,7 +290,7 @@ class ScaleDataset(GeometricDataset):
 class RotationDataset(GeometricDataset):
     def __init__(
             self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=2, seed=None
+            min_back=100, max_back=200, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
@@ -358,5 +358,81 @@ class RotationDataset(GeometricDataset):
 
             data[mask] = foreground[mask]
             print(np.sum(mask))
+
+        return data, target_data
+
+
+class GradientDataset(GeometricDataset):
+    def __init__(
+            self, im_size, n_samples=1000, scale_ratio=2,
+            min_back=100, max_back=200, fore_ratio=3, seed=None
+    ):
+        # Init
+        super().__init__(
+            im_size, n_samples, 1, min_back, max_back, fore_ratio,
+            seed
+        )
+        self.scale = scale_ratio
+        self.shapes = []
+        self.masks = []
+        self.labels = []
+
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            for i in range(self.len):
+                cx, cy, cz, r = self._coordinates()
+                x, y, z = self._image_grid()
+                background, foreground = self._gaussian_images()
+
+                if i < n_samples:
+                    # Normal spheres
+                    self.labels.append(0)
+                else:
+                    # Concentric spheres
+                    self.labels.append(1)
+                    gradient = self._gradient(cx, cy, cz, r)
+                    foreground = np.clip(
+                        gradient * foreground,
+                        0, np.max(foreground) - (self.max_back - self.min_back)
+                    )
+
+                mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+
+                background[mask] = foreground[mask]
+                self.masks.append(mask)
+                self.shapes.append(background)
+
+    def _gradient(self, cx, cy, cz, r):
+        x, y, z = self._image_grid()
+        c_dist = (x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2
+        gradient = np.clip(r ** 2 - c_dist, 0, r ** 2) / (r ** 2)
+
+        return gradient
+
+    def __getitem__(self, index):
+        if len(self.shapes) > 0:
+            data = self.shapes[index]
+            target_data = (self.labels[index], self.masks[index])
+        else:
+            cx, cy, cz, r = self._coordinates()
+            x, y, z = self._image_grid()
+            data, foreground = self._gaussian_images()
+
+            if index < (self.len / 2):
+                # Normal cube
+                target_data = 0
+            else:
+                print(self.max_back - self.min_back, np.max(foreground))
+                # Rotated cube
+                target_data = 1
+                gradient = self._gradient(cx, cy, cz, r)
+                foreground = np.clip(
+                    gradient * foreground,
+                    0, np.max(foreground) - (self.max_back - self.min_back)
+                )
+
+            mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+
+            data[mask] = foreground[mask] + data[mask]
 
         return data, target_data
