@@ -162,7 +162,7 @@ class ShapesDataset(GeometricDataset):
 
             data[mask] = foreground[mask]
 
-        return np.expand_dims(data, axis=0), target_data
+        return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class LocationDataset(GeometricDataset):
@@ -253,7 +253,7 @@ class LocationDataset(GeometricDataset):
 
             data[mask] = foreground[mask]
 
-        return np.expand_dims(data, axis=0), target_data
+        return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class ScaleDataset(GeometricDataset):
@@ -328,7 +328,7 @@ class ScaleDataset(GeometricDataset):
 
             data[mask] = foreground[mask]
 
-        return np.expand_dims(data, axis=0), target_data
+        return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class RotationDataset(GeometricDataset):
@@ -410,7 +410,7 @@ class RotationDataset(GeometricDataset):
 
             data[mask] = foreground[mask]
 
-        return np.expand_dims(data, axis=0), target_data
+        return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class GradientDataset(GeometricDataset):
@@ -491,7 +491,7 @@ class GradientDataset(GeometricDataset):
 
             data[mask] = foreground[mask] + data[mask]
 
-        return np.expand_dims(data, axis=0), target_data
+        return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class ContrastDataset(GradientDataset):
@@ -575,7 +575,7 @@ class ContrastDataset(GradientDataset):
 
             data[mask] = foreground[mask] + data[mask]
 
-        return np.expand_dims(data, axis=0), target_data
+        return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class ParcellationDataset(ContrastDataset):
