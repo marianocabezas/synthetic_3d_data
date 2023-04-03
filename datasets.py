@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.ndimage.filters import gaussian_filter
 from torch.utils.data.dataset import Dataset
 
 
@@ -102,11 +103,11 @@ class ShapesDataset(GeometricDataset):
                 x, y, z = self._image_grid()
 
                 if i < n_samples:
-                    # Cubes
+                    # Cube
                     self.labels.append(0)
                     mask = self._cube_mask(x, y, z, cx, cy, cz, s)
                 else:
-                    # Spheres
+                    # Sphere
                     self.labels.append(1)
                     mask = self._sphere_mask(x, y, z, cx, cy, cz, s / 2)
 
@@ -123,11 +124,11 @@ class ShapesDataset(GeometricDataset):
             data, foreground = self._gaussian_images()
             x, y, z = self._image_grid()
             if index < (self.len / 2):
-                # Cubes
+                # Cube
                 target_data = 0
                 mask = self._cube_mask(x, y, z, cx, cy, cz, s)
             else:
-                # Spheres
+                # Sphere
                 target_data = 1
                 mask = self._sphere_mask(x, y, z, cx, cy, cz, s / 2)
 
@@ -157,11 +158,11 @@ class LocationDataset(GeometricDataset):
                 x, y, z = self._image_grid()
 
                 if i < n_samples:
-                    # Spheres (top-left)
+                    # Sphere (top-left)
                     self.labels.append(0)
                     mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
                 else:
-                    # Spheres (bottom-right)
+                    # Sphere (bottom-right)
                     self.labels.append(1)
                     mask = self._sphere_mask(
                         x + self.max_x / 2,
@@ -201,11 +202,11 @@ class LocationDataset(GeometricDataset):
             data, foreground = self._gaussian_images()
             x, y, z = self._image_grid()
             if index < (self.len / 2):
-                # Spheres (top-left)
+                # Sphere (top-left)
                 target_data = 0
                 mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
             else:
-                # Spheres (bottom-right)
+                # Sphere (bottom-right)
                 target_data = 1
                 mask = self._sphere_mask(
                     x, y, z,
@@ -242,11 +243,11 @@ class ScaleDataset(GeometricDataset):
                 x, y, z = self._image_grid()
 
                 if i < n_samples:
-                    # Big spheres
+                    # Big sphere
                     self.labels.append(0)
                     mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
                 else:
-                    # Small spheres
+                    # Small sphere
                     self.labels.append(1)
                     mask = self._sphere_mask(x, y, z, cx, cy, cz, r / self.scale)
 
@@ -274,11 +275,11 @@ class ScaleDataset(GeometricDataset):
             data, foreground = self._gaussian_images()
             x, y, z = self._image_grid()
             if index < (self.len / 2):
-                # Big spheres
+                # Big sphere
                 target_data = 0
                 mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
             else:
-                # Small spheres
+                # Small sphere
                 target_data = 1
                 mask = self._sphere_mask(x, y, z, cx, cy, cz, r / self.scale)
 
@@ -294,10 +295,9 @@ class RotationDataset(GeometricDataset):
     ):
         # Init
         super().__init__(
-            im_size, n_samples, 1, min_back, max_back, fore_ratio,
+            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
             seed
         )
-        self.scale = scale_ratio
         self.shapes = []
         self.masks = []
         self.labels = []
@@ -308,11 +308,11 @@ class RotationDataset(GeometricDataset):
                 background, foreground = self._gaussian_images()
 
                 if i < n_samples:
-                    # Normal cubes
+                    # Normal cube
                     self.labels.append(0)
                     angle = np.random.normal(0, np.pi * 0.05)
                 else:
-                    # Rotated cubes
+                    # Rotated cube
                     self.labels.append(1)
                     angle = np.random.normal(np.pi / 4, np.pi * 0.05)
 
@@ -357,7 +357,6 @@ class RotationDataset(GeometricDataset):
             mask = self._cube_mask(x, y, z, cx, cy, cz, s)
 
             data[mask] = foreground[mask]
-            print(np.sum(mask))
 
         return data, target_data
 
@@ -369,10 +368,9 @@ class GradientDataset(GeometricDataset):
     ):
         # Init
         super().__init__(
-            im_size, n_samples, 1, min_back, max_back, fore_ratio,
+            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
             seed
         )
-        self.scale = scale_ratio
         self.shapes = []
         self.masks = []
         self.labels = []
@@ -385,10 +383,10 @@ class GradientDataset(GeometricDataset):
                 background, foreground = self._gaussian_images()
 
                 if i < n_samples:
-                    # Normal spheres
+                    # Normal sphere
                     self.labels.append(0)
                 else:
-                    # Concentric spheres
+                    # Concentric sphere
                     self.labels.append(1)
                     gradient = self._gradient(cx, cy, cz, r)
                     foreground = np.clip(
@@ -419,11 +417,10 @@ class GradientDataset(GeometricDataset):
             data, foreground = self._gaussian_images()
 
             if index < (self.len / 2):
-                # Normal cube
+                # Normal sphere
                 target_data = 0
             else:
-                print(self.max_back - self.min_back, np.max(foreground))
-                # Rotated cube
+                # Concentric sphere
                 target_data = 1
                 gradient = self._gradient(cx, cy, cz, r)
                 foreground = np.clip(
@@ -436,3 +433,124 @@ class GradientDataset(GeometricDataset):
             data[mask] = foreground[mask] + data[mask]
 
         return data, target_data
+
+
+class ContrastDataset(GradientDataset):
+    def __init__(
+            self, im_size, n_samples=1000, scale_ratio=2,
+            min_back=100, max_back=200, fore_ratio=3, seed=None
+    ):
+        # Init
+        super().__init__(
+            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
+            seed
+        )
+        self.shapes = []
+        self.masks = []
+        self.labels = []
+
+        if self.seed is not None:
+            np.random.seed(self.seed)
+            for i in range(self.len):
+                cx, cy, cz, r = self._coordinates()
+                x, y, z = self._image_grid()
+                background, foreground = self._gaussian_images()
+                gradient = self._gradient(cx, cy, cz, r)
+
+                if i < n_samples:
+                    # Positive gradient
+                    self.labels.append(0)
+                    foreground = np.clip(
+                        (1 - gradient) * foreground,
+                        0, np.max(foreground) - (self.max_back - self.min_back)
+                    )
+                else:
+                    # Negative gradient
+                    self.labels.append(1)
+
+                    foreground = np.clip(
+                        gradient * foreground,
+                        0, np.max(foreground) - (self.max_back - self.min_back)
+                    )
+
+                mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+
+                background[mask] = foreground[mask]
+                self.masks.append(mask)
+                self.shapes.append(background)
+
+    def __getitem__(self, index):
+        if len(self.shapes) > 0:
+            data = self.shapes[index]
+            target_data = (self.labels[index], self.masks[index])
+        else:
+            cx, cy, cz, r = self._coordinates()
+            x, y, z = self._image_grid()
+            data, foreground = self._gaussian_images()
+            gradient = self._gradient(cx, cy, cz, r)
+
+            if index < (self.len / 2):
+                # Positive gradient
+                target_data = 0
+                foreground = np.clip(
+                    (1 - gradient) * foreground,
+                    0, np.max(foreground) - (self.max_back - self.min_back)
+                )
+            else:
+                # Negative gradient
+                target_data = 1
+                foreground = np.clip(
+                    gradient * foreground,
+                    0, np.max(foreground) - (self.max_back - self.min_back)
+                )
+
+            mask = self._sphere_mask(x, y, z, cx, cy, cz, r)
+
+            data[mask] = foreground[mask] + data[mask]
+
+        return data, target_data
+
+
+class ParcellationDataset(ContrastDataset):
+    def __init__(
+            self, im_size, n_samples=1000, scale_ratio=2,
+            min_back=100, max_back=200, fore_ratio=4,
+            sigma=1, alpha=10, seed=None
+    ):
+        # Init
+        self.sigma = sigma
+        self.alpha = alpha
+        super().__init__(
+            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
+            seed
+        )
+
+    def _gradient(self, cx, cy, cz, r):
+        x, y, z = self._image_grid()
+        core_x, core_y, core_z = self._elastic_shape(x, y, z)
+        core_d = (core_x - cx) ** 2 + (core_y - cy) ** 2 + (core_z - cz) ** 2
+        core = (core_d < (r ** 2) / 9).astype(np.float32)
+        mid_x, mid_y, mid_z = self._elastic_shape(x, y, z)
+        mid_d = (mid_x - cx) ** 2 + (mid_y - cy) ** 2 + (mid_z - cz) ** 2
+        mid = (mid_d < (r ** 2) * 4 / 9).astype(np.float32)
+        bound_d = (x - cx) ** 2 + (y - cy) ** 2 + (z - cz) ** 2
+        bound = (bound_d < (r ** 2)).astype(np.float32)
+        gradient = (4 * core + 3 * mid + 2 * bound) / 7
+
+        return gradient
+
+    def _elastic_shape(self, x, y, z):
+        dx = gaussian_filter(
+            2 * np.random.rand(*x.shape) - 1,
+            self.sigma, mode='constant', cval=0
+        ) * self.alpha
+        dy = gaussian_filter(
+            2 * np.random.rand(*y.shape) - 1,
+            self.sigma, mode='constant', cval=0
+        ) * self.alpha
+        dz = gaussian_filter(
+            2 * np.random.rand(*z.shape) - 1,
+            self.sigma, mode='constant', cval=0
+        ) * self.alpha
+        return x + dx, y + dy, z + dz
+
