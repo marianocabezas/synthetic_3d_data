@@ -56,40 +56,27 @@ Overlap losses
 """
 
 
+def agreement_ratio(numerator, denominator, device):
+    num_sum = torch.sum(numerator).to(device, torch.float32)
+    den_sum = torch.sum(denominator).to(device, torch.float32)
+    ratio = num_sum / den_sum
+    ratio = ratio[torch.logical_not(torch.isnan(ratio))]
+    neg_ratio = 1 - torch.mean(ratio) if len(ratio) > 0 else torch.tensor(0)
+    return torch.clamp(neg_ratio, 0., 1.)
+
+
 def tp_binary_loss(pred, target):
     pred = pred >= 0
     target = target > 0
 
-    intersection = (
-        torch.sum(pred & target, dim=1)
-    ).type(torch.float32).to(pred.device)
-    sum_target = torch.sum(target, dim=1).type(torch.float32).to(pred.device)
-
-    tp_k = intersection / sum_target
-    tp_k = tp_k[torch.logical_not(torch.isnan(tp_k))]
-    tp = 1 - torch.mean(tp_k) if len(tp_k) > 0 else torch.tensor(0)
-
-    return torch.clamp(tp, 0., 1.)
+    return agreement_ratio(pred & target, target, pred.device)
 
 
 def tn_binary_loss(pred, target):
     pred = pred < 0
     target = target < 1
 
-    intersection = (
-            torch.sum(pred & target, dim=1)
-    ).type(torch.float32).to(pred.device)
-    sum_target = torch.sum(
-        target, dim=1
-    ).type(torch.float32).to(pred.device)
-
-    tn_k = intersection / sum_target
-    tn_k = tn_k[torch.logical_not(torch.isnan(tn_k))]
-    tn = 1 - torch.mean(tn_k)
-    if torch.isnan(tn):
-        tn = torch.tensor(0.)
-
-    return torch.clamp(tn, 0., 1.)
+    return agreement_ratio(pred & target, target, pred.device)
 
 
 def accuracy_loss(predicted, target):
