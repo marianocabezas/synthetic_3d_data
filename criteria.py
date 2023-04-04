@@ -91,7 +91,7 @@ def accuracy_loss(predicted, target):
     correct_positive = predicted & target
     correct_negative = torch.logical_not(predicted) & torch.logical_not(target)
     acc = 1 - torch.mean(
-        torch.cat([correct_positive, correct_negative]).type(torch.float32)
+        torch.cat(correct_positive + correct_negative).type(torch.float32)
     )
 
     return torch.clamp(acc, 0., 1.)
