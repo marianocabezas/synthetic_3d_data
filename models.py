@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from base import BaseModel, ResConv3dBlock
 from base import Autoencoder
 from utils import time_to_string
-from criteria import tp_binary_loss, tn_binary_loss, dsc_binary_loss, accuracy
+from criteria import tp_binary_loss, tn_binary_loss, accuracy_loss
 
 
 def norm_f(n_f):
@@ -79,7 +79,7 @@ class SimpleResNet(BaseModel):
             {
                 'name': 'xentropy',
                 'weight': 1,
-                'f': F.binary_cross_entropy
+                'f': F.binary_cross_entropy_with_logits
             }
         ]
 
@@ -87,7 +87,7 @@ class SimpleResNet(BaseModel):
             {
                 'name': 'xent',
                 'weight': 0,
-                'f': F.binary_cross_entropy
+                'f': F.binary_cross_entropy_with_logits
             },
             {
                 'name': 'fn',
@@ -102,9 +102,7 @@ class SimpleResNet(BaseModel):
             {
                 'name': 'acc',
                 'weight': 0,
-                'f': lambda p, t: 1 - accuracy(
-                    (p > 0.5).type_as(p), t.type_as(p)
-                )
+                'f': accuracy_loss
             },
         ]
 

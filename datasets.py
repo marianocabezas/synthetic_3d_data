@@ -148,17 +148,20 @@ class ShapesDataset(GeometricDataset):
     def __getitem__(self, index):
         if len(self.shapes) > 0:
             data = self.shapes[index]
-            target_data = (self.labels[index], self.masks[index])
+            target_data = (
+                np.array(self.labels[index], dtype=np.float32),
+                self.masks[index]
+            )
         else:
             cx, cy, cz, s = self._coordinates()
             data, foreground = self._gaussian_images()
             if index < (self.len / 2):
                 # Cube
-                target_data = 0
+                target_data = np.array(0, dtype=np.float32)
                 mask = self._cube_mask(cx, cy, cz, s)
             else:
                 # Sphere
-                target_data = 1
+                target_data = np.array(1, dtype=np.float32)
                 mask = self._sphere_mask(cx, cy, cz, s / 2)
 
             data[mask] = foreground[mask]
@@ -234,17 +237,20 @@ class LocationDataset(GeometricDataset):
     def __getitem__(self, index):
         if len(self.shapes) > 0:
             data = self.shapes[index]
-            target_data = (self.labels[index], self.masks[index])
+            target_data = (
+                np.array(self.labels[index], dtype=np.float32),
+                self.masks[index]
+            )
         else:
             cx, cy, cz, r = self._coordinates()
             data, foreground = self._gaussian_images()
             if index < (self.len / 2):
                 # Sphere (top-left)
-                target_data = 0
+                target_data = np.array(0, dtype=np.float32)
                 mask = self._sphere_mask(cx, cy, cz, r)
             else:
                 # Sphere (bottom-right)
-                target_data = 1
+                target_data = np.array(1, dtype=np.float32)
                 mask = self._sphere_mask(
                     cx, cy, cz, r,
                     self.x + self.max_x / 2,
@@ -314,17 +320,20 @@ class ScaleDataset(GeometricDataset):
     def __getitem__(self, index):
         if len(self.shapes) > 0:
             data = self.shapes[index]
-            target_data = (self.labels[index], self.masks[index])
+            target_data = (
+                np.array(self.labels[index], dtype=np.float32),
+                self.masks[index]
+            )
         else:
             cx, cy, cz, r = self._coordinates()
             data, foreground = self._gaussian_images()
             if index < (self.len / 2):
                 # Big sphere
-                target_data = 0
+                target_data = np.array(0, dtype=np.float32)
                 mask = self._sphere_mask(cx, cy, cz, r)
             else:
                 # Small sphere
-                target_data = 1
+                target_data = np.array(1, dtype=np.float32)
                 mask = self._sphere_mask(cx, cy, cz, r / self.scale)
 
             data[mask] = foreground[mask]
@@ -363,11 +372,11 @@ class RotationDataset(GeometricDataset):
 
                 if i < n_samples:
                     # Normal cube
-                    self.labels.append(0)
+                    target_data = np.array(0, dtype=np.float32)
                     angle = np.random.normal(0, np.pi * 0.05)
                 else:
                     # Rotated cube
-                    self.labels.append(1)
+                    target_data = np.array(1, dtype=np.float32)
                     angle = np.random.normal(np.pi / 4, np.pi * 0.05)
 
                 x, y, z = self._rotate_grid(cx, cy, cz, angle)
@@ -392,18 +401,21 @@ class RotationDataset(GeometricDataset):
     def __getitem__(self, index):
         if len(self.shapes) > 0:
             data = self.shapes[index]
-            target_data = (self.labels[index], self.masks[index])
+            target_data = (
+                np.array(self.labels[index], dtype=np.float32),
+                self.masks[index]
+            )
         else:
             cx, cy, cz, s = self._coordinates()
             data, foreground = self._gaussian_images()
 
             if index < (self.len / 2):
                 # Normal cube
-                target_data = 0
+                target_data = np.array(0, dtype=np.float32)
                 angle = np.random.normal(0, np.pi * 0.01)
             else:
                 # Rotated cube
-                target_data = 1
+                target_data = np.array(1, dtype=np.float32)
                 angle = np.random.normal(np.pi / 4, np.pi * 0.01)
 
             x, y, z = self._rotate_grid(cx, cy, cz, angle)
@@ -471,17 +483,20 @@ class GradientDataset(GeometricDataset):
     def __getitem__(self, index):
         if len(self.shapes) > 0:
             data = self.shapes[index]
-            target_data = (self.labels[index], self.masks[index])
+            target_data = (
+                np.array(self.labels[index], dtype=np.float32),
+                self.masks[index]
+            )
         else:
             cx, cy, cz, r = self._coordinates()
             data, foreground = self._gaussian_images()
 
             if index < (self.len / 2):
                 # Normal sphere
-                target_data = 0
+                target_data = np.array(0, dtype=np.float32)
             else:
                 # Concentric sphere
-                target_data = 1
+                target_data = np.array(1, dtype=np.float32)
                 gradient = self._gradient(cx, cy, cz, r)
                 foreground = np.clip(
                     gradient * foreground,
@@ -551,7 +566,10 @@ class ContrastDataset(GradientDataset):
     def __getitem__(self, index):
         if len(self.shapes) > 0:
             data = self.shapes[index]
-            target_data = (self.labels[index], self.masks[index])
+            target_data = (
+                np.array(self.labels[index], dtype=np.float32),
+                self.masks[index]
+            )
         else:
             cx, cy, cz, r = self._coordinates()
             data, foreground = self._gaussian_images()
@@ -559,14 +577,14 @@ class ContrastDataset(GradientDataset):
 
             if index < (self.len / 2):
                 # Positive gradient
-                target_data = 0
+                target_data = np.array(0, dtype=np.float32)
                 foreground = np.clip(
                     (1 - gradient) * foreground,
                     0, np.max(foreground) - (self.max_back - self.min_back)
                 )
             else:
                 # Negative gradient
-                target_data = 1
+                target_data = np.array(1, dtype=np.float32)
                 foreground = np.clip(
                     gradient * foreground,
                     0, np.max(foreground) - (self.max_back - self.min_back)

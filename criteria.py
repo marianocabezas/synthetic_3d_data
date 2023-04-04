@@ -52,32 +52,13 @@ def similarity_loss(var_pair):
 
 
 """
-DSC based losses
+Overlap losses
 """
 
 
-def dsc_binary_loss(pred, target):
-    pred = torch.flatten(pred >= 0.5, start_dim=1).to(pred.device)
-    target = torch.flatten(target, start_dim=1).type_as(pred).to(pred.device)
-
-    intersection = (
-            2 * torch.sum(pred & target, dim=1)
-    ).type(torch.float32).to(pred.device)
-    sum_pred = torch.sum(pred, dim=1).type(torch.float32).to(pred.device)
-    sum_target = torch.sum(target, dim=1).type(torch.float32).to(pred.device)
-
-    dsc_k = intersection / (sum_pred + sum_target)
-    dsc_k = dsc_k[torch.logical_not(torch.isnan(dsc_k))]
-    if len(dsc_k) > 0:
-        dsc = 1 - torch.mean(dsc_k)
-    else:
-        dsc = torch.tensor(0)
-
-    return torch.clamp(dsc, 0., 1.)
-
-
 def tp_binary_loss(pred, target):
-    pred = pred >= 0.5
+    pred = pred >= 0
+    target = target > 0
 
     intersection = (
         torch.sum(pred & target, dim=1)
@@ -92,13 +73,14 @@ def tp_binary_loss(pred, target):
 
 
 def tn_binary_loss(pred, target):
-    pred = pred < 0.5
+    pred = pred < 0
+    target = target < 1
 
     intersection = (
-            torch.sum(pred & torch.logical_not(target), dim=1)
+            torch.sum(pred & target, dim=1)
     ).type(torch.float32).to(pred.device)
     sum_target = torch.sum(
-        torch.logical_not(target), dim=1
+        target, dim=1
     ).type(torch.float32).to(pred.device)
 
     tn_k = intersection / sum_target
@@ -110,14 +92,19 @@ def tn_binary_loss(pred, target):
     return torch.clamp(tn, 0., 1.)
 
 
-def accuracy(predicted, target):
+def accuracy_loss(predicted, target):
     """
 
     :param predicted:
     :param target:
     :return:
     """
-    correct_positive = predicted * target
-    correct_negative = (1. - predicted) * (1. - target)
+    predicted = predicted >= 0
+    target = target > 0
+    correct_positive = predicted & target
+    correct_negative = torch.logical_not(predicted) & torch.logical_not(target)
+    acc = 1 - torch.mean(
+        torch.cat([correct_positive, correct_negative]).type(torch.float32)
+    )
 
-    return torch.mean(correct_positive + correct_negative)
+    return torch.clamp(acc, 0., 1.)
