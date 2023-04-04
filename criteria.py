@@ -77,8 +77,7 @@ def dsc_binary_loss(pred, target):
 
 
 def tp_binary_loss(pred, target):
-    pred = torch.flatten(pred >= 0.5, start_dim=1).to(pred.device)
-    target = torch.flatten(target, start_dim=1).type_as(pred).to(pred.device)
+    pred = pred >= 0.5
 
     intersection = (
         torch.sum(pred & target, dim=1)
@@ -93,8 +92,7 @@ def tp_binary_loss(pred, target):
 
 
 def tn_binary_loss(pred, target):
-    pred = torch.flatten(pred < 0.5, start_dim=1).to(pred.device)
-    target = torch.flatten(target, start_dim=1).type_as(pred).to(pred.device)
+    pred = pred < 0.5
 
     intersection = (
             torch.sum(pred & torch.logical_not(target), dim=1)

@@ -79,10 +79,7 @@ class SimpleResNet(BaseModel):
             {
                 'name': 'xentropy',
                 'weight': 1,
-                'f': lambda p, t: F.binary_cross_entropy(
-                # 'f': lambda p, t: focal_loss(
-                    p, t.type_as(p).to(p.device)
-                )
+                'f': F.binary_cross_entropy
             }
         ]
 
@@ -90,19 +87,17 @@ class SimpleResNet(BaseModel):
             {
                 'name': 'xent',
                 'weight': 0,
-                'f': lambda p, t: F.binary_cross_entropy(
-                    p, t.type_as(p).to(p.device)
-                )
+                'f': F.binary_cross_entropy
             },
             {
                 'name': 'fn',
                 'weight': 0.5,
-                'f': lambda p, t: tp_binary_loss(p, t)
+                'f': tp_binary_loss
             },
             {
                 'name': 'fp',
                 'weight': 0.5,
-                'f': lambda p, t: tn_binary_loss(p, t)
+                'f': tn_binary_loss
             },
             {
                 'name': 'acc',
