@@ -188,6 +188,7 @@ class LocationDataset(GeometricDataset):
             for i in range(self.len):
                 time_elapsed = time.time() - init_start
                 eta = self.len * time_elapsed / (i + 1)
+                print(' '.join([' '] * 300), end='\r')
                 print(
                     '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
                         i + 1, self.len,
@@ -283,6 +284,7 @@ class ScaleDataset(GeometricDataset):
             for i in range(self.len):
                 time_elapsed = time.time() - init_start
                 eta = self.len * time_elapsed / (i + 1)
+                print(' '.join([' '] * 300), end='\r')
                 print(
                     '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
                         i + 1, self.len,
@@ -360,6 +362,7 @@ class RotationDataset(GeometricDataset):
             for i in range(self.len):
                 time_elapsed = time.time() - init_start
                 eta = self.len * time_elapsed / (i + 1)
+                print(' '.join([' '] * 300), end='\r')
                 print(
                     '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
                         i + 1, self.len,
@@ -446,6 +449,7 @@ class GradientDataset(GeometricDataset):
             for i in range(self.len):
                 time_elapsed = time.time() - init_start
                 eta = self.len * time_elapsed / (i + 1)
+                print(' '.join([' '] * 300), end='\r')
                 print(
                     '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
                         i + 1, self.len,
@@ -530,6 +534,7 @@ class ContrastDataset(GradientDataset):
             for i in range(self.len):
                 time_elapsed = time.time() - init_start
                 eta = self.len * time_elapsed / (i + 1)
+                print(' '.join([' '] * 300), end='\r')
                 print(
                     '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
                         i + 1, self.len,
