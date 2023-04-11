@@ -235,7 +235,6 @@ class LocationDataset(GeometricDataset):
                         self.z + self.max_z / 2,
                     )
 
-                background[mask] = foreground[mask]
                 self.masks.append(mask)
                 self.shapes.append(
                     (1 - blend_map) * background + blend_map * foreground
@@ -403,11 +402,11 @@ class RotationDataset(GeometricDataset):
 
                 if i < n_samples:
                     # Normal cube
-                    target_data = np.array(0, dtype=np.float32)
+                    self.labels.append(0)
                     angle = np.random.normal(0, np.pi * 0.05)
                 else:
                     # Rotated cube
-                    target_data = np.array(1, dtype=np.float32)
+                    self.labels.append(1)
                     angle = np.random.normal(np.pi / 4, np.pi * 0.05)
 
                 x, y, z = self._rotate_grid(cx, cy, cz, angle)
