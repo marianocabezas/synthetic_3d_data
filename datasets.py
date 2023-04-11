@@ -229,10 +229,10 @@ class LocationDataset(GeometricDataset):
                     # Sphere (bottom-right)
                     self.labels.append(1)
                     mask, blend_map = self._sphere_mask(
-                        cx, cy, cz, r,
-                        self.x + self.max_x / 2,
-                        self.y + self.max_y / 2,
-                        self.z + self.max_z / 2,
+                        cx + self.max_x / 2,
+                        cy + self.max_y / 2,
+                        cz + self.max_z / 2,
+                        r, self.x, self.y, self.z,
                     )
 
                 self.masks.append(mask)
@@ -276,11 +276,11 @@ class LocationDataset(GeometricDataset):
                 # Sphere (bottom-right)
                 target_data = np.array(1, dtype=np.float32)
                 mask, blend_map = self._sphere_mask(
-                    cx, cy, cz, r,
-                    self.x + self.max_x / 2,
-                    self.y + self.max_y / 2,
-                    self.z + self.max_z / 2,
-                )
+                        cx + self.max_x / 2,
+                        cy + self.max_y / 2,
+                        cz + self.max_z / 2,
+                        r, self.x, self.y, self.z,
+                    )
 
             data = (1 - blend_map) * background + blend_map * foreground
 
