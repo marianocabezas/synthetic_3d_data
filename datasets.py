@@ -586,7 +586,6 @@ class ContrastDataset(GradientDataset):
                 else:
                     # Negative gradient
                     self.labels.append(1)
-
                     foreground = np.clip(
                         gradient * foreground,
                         0, np.max(foreground) - (self.max_back - self.min_back)
@@ -594,7 +593,6 @@ class ContrastDataset(GradientDataset):
 
                 mask, blend_map = self._sphere_mask(cx, cy, cz, r)
 
-                background[mask] = foreground[mask]
                 self.masks.append(mask)
                 self.shapes.append(
                     (1 - blend_map) * background + blend_map * foreground
