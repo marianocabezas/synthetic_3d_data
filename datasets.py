@@ -10,15 +10,20 @@ from utils import time_to_string
 
 class GeometricDataset(Dataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=3, seed=None
+        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
+        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
+        noise_ratio=0.2, fore_ratio=3, seed=None
     ):
         self.len = n_samples * 2
         self.max_x, self.max_y, self.max_z = im_size
         self.max_side = np.min(im_size)
         self.min_side = self.max_side / scale_ratio
+        self.smooth = smooth_sigma
+        self.blend = blend
+        self.temperature = blend_t
         self.min_back = min_back
         self.max_back = max_back
+        self.noise = noise_ratio
         self.fore_ratio = fore_ratio
         self.seed = seed
         self.x, self.y, self.z = np.meshgrid(
@@ -50,36 +55,50 @@ class GeometricDataset(Dataset):
         im_size = (self.max_x, self.max_y, self.max_z)
         bck_range = self.max_back - self.min_back
         mean_back = np.random.rand(1) * bck_range + self.min_back
-        std_value = 0.5 * mean_back
+        std_value = self.noise * mean_back
         mean_foreground = mean_back * self.fore_ratio
 
-        background = np.random.normal(mean_back, std_value, im_size)
-        foreground = np.random.normal(mean_foreground, std_value, im_size)
+        if self.smooth > 0:
+            background = gaussian_filter(
+                np.random.normal(mean_back, std_value, im_size),
+                self.smooth, mode='constant', cval=0
+            )
+            foreground = gaussian_filter(
+                np.random.normal(mean_foreground, std_value, im_size),
+                self.smooth, mode='constant', cval=0
+            )
+        else:
+            background = np.random.normal(mean_back, std_value, im_size)
+            foreground = np.random.normal(mean_foreground, std_value, im_size)
 
         return background, foreground
 
+    def _blend_map(self, dist_map):
+        blend_band = 1 - self.blend
+        blend_map = 1 - np.clip(dist_map - self.blend, 0, 1) / blend_band
+        mask = dist_map <= 1
+        blend_map[np.logical_not(mask)] = 0
+        blend_map[dist_map < self.blend] = 1
+        return mask, blend_map
+
     def _cube_mask(self, x0, y0, z0, side, x=None, y=None, z=None):
-        def side_mask(grid, coord):
-            mask = np.logical_and(
-                grid > (coord - side / 2), grid < (coord + side / 2)
-            )
-            return mask
+        def side_map(grid, coord):
+            return 2 * np.abs(grid - coord) / side
+
         if x is None:
-            x_mask = side_mask(self.x, x0)
+            x_map = side_map(self.x, x0)
         else:
-            x_mask = side_mask(x, x0)
+            x_map = side_map(x, x0)
         if y is None:
-            y_mask = side_mask(self.y, y0)
+            y_map = side_map(self.y, y0)
         else:
-            y_mask = side_mask(y, y0)
+            y_map = side_map(y, y0)
         if z is None:
-            z_mask = side_mask(self.z, z0)
+            z_map = side_map(self.z, z0)
         else:
-            z_mask = side_mask(z, z0)
-        mask = np.logical_and(
-            np.logical_and(x_mask, y_mask), z_mask
-        )
-        return mask
+            z_map = side_map(z, z0)
+        max_map = np.max([x_map, y_map, z_map], axis=0)
+        return self._blend_map(max_map)
 
     def _sphere_mask(self, a, b, c, radius, x=None, y=None, z=None):
         # (x - a)² + (y - b)² + (z - c)² = r²
@@ -95,8 +114,8 @@ class GeometricDataset(Dataset):
             z_dist = (self.z - c) ** 2
         else:
             z_dist = (z - c) ** 2
-        mask = x_dist + y_dist + z_dist - radius ** 2 <= 0
-        return mask
+        norm_dist = (x_dist + y_dist + z_dist) / (radius ** 2)
+        return self._blend_map(norm_dist)
 
     def __len__(self):
         return self.len
@@ -104,13 +123,14 @@ class GeometricDataset(Dataset):
 
 class ShapesDataset(GeometricDataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=3, seed=None
+        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
+        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
+        noise_ratio=0.2, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
-            seed
+            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
         self.masks = []
@@ -135,15 +155,16 @@ class ShapesDataset(GeometricDataset):
                 if i < n_samples:
                     # Cube
                     self.labels.append(0)
-                    mask = self._cube_mask(cx, cy, cz, s)
+                    mask, blend_map = self._cube_mask(cx, cy, cz, s)
                 else:
                     # Sphere
                     self.labels.append(1)
-                    mask = self._sphere_mask(cx, cy, cz, s / 2)
+                    mask, blend_map = self._sphere_mask(cx, cy, cz, s / 2)
 
-                background[mask] = foreground[mask]
                 self.masks.append(mask)
-                self.shapes.append(background)
+                self.shapes.append(
+                    (1 - blend_map) * background + blend_map * foreground
+                )
 
     def __getitem__(self, index):
         if len(self.shapes) > 0:
@@ -154,30 +175,31 @@ class ShapesDataset(GeometricDataset):
             )
         else:
             cx, cy, cz, s = self._coordinates()
-            data, foreground = self._gaussian_images()
+            background, foreground = self._gaussian_images()
             if index < (self.len / 2):
                 # Cube
                 target_data = np.array(0, dtype=np.float32)
-                mask = self._cube_mask(cx, cy, cz, s)
+                mask, blend_map = self._cube_mask(cx, cy, cz, s)
             else:
                 # Sphere
                 target_data = np.array(1, dtype=np.float32)
-                mask = self._sphere_mask(cx, cy, cz, s / 2)
+                mask, blend_map = self._sphere_mask(cx, cy, cz, s / 2)
 
-            data[mask] = foreground[mask]
+            data = (1 - blend_map) * background + blend_map * foreground
 
         return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class LocationDataset(GeometricDataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=3, seed=None
+        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
+        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
+        noise_ratio=0.2, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
-            seed
+            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
         self.masks = []
@@ -188,6 +210,7 @@ class LocationDataset(GeometricDataset):
             for i in range(self.len):
                 time_elapsed = time.time() - init_start
                 eta = self.len * time_elapsed / (i + 1)
+                print(' '.join([' '] * 300), end='\r')
                 print(
                     '\033[KGenerating sample ({:d}/{:d}) {:} ETA {:}'.format(
                         i + 1, self.len,
@@ -201,11 +224,11 @@ class LocationDataset(GeometricDataset):
                 if i < n_samples:
                     # Sphere (top-left)
                     self.labels.append(0)
-                    mask = self._sphere_mask(cx, cy, cz, r)
+                    mask, blend_map = self._sphere_mask(cx, cy, cz, r)
                 else:
                     # Sphere (bottom-right)
                     self.labels.append(1)
-                    mask = self._sphere_mask(
+                    mask, blend_map = self._sphere_mask(
                         cx, cy, cz, r,
                         self.x + self.max_x / 2,
                         self.y + self.max_y / 2,
@@ -214,7 +237,9 @@ class LocationDataset(GeometricDataset):
 
                 background[mask] = foreground[mask]
                 self.masks.append(mask)
-                self.shapes.append(background)
+                self.shapes.append(
+                    (1 - blend_map) * background + blend_map * foreground
+                )
 
     def _coordinates(self):
         side_range = self.max_side - self.min_side
@@ -243,35 +268,36 @@ class LocationDataset(GeometricDataset):
             )
         else:
             cx, cy, cz, r = self._coordinates()
-            data, foreground = self._gaussian_images()
+            background, foreground = self._gaussian_images()
             if index < (self.len / 2):
                 # Sphere (top-left)
                 target_data = np.array(0, dtype=np.float32)
-                mask = self._sphere_mask(cx, cy, cz, r)
+                mask, blend_map = self._sphere_mask(cx, cy, cz, r)
             else:
                 # Sphere (bottom-right)
                 target_data = np.array(1, dtype=np.float32)
-                mask = self._sphere_mask(
+                mask, blend_map = self._sphere_mask(
                     cx, cy, cz, r,
                     self.x + self.max_x / 2,
                     self.y + self.max_y / 2,
                     self.z + self.max_z / 2,
                 )
 
-            data[mask] = foreground[mask]
+            data = (1 - blend_map) * background + blend_map * foreground
 
         return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class ScaleDataset(GeometricDataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=3, seed=None
+        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
+        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
+        noise_ratio=0.2, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, 1, min_back, max_back, fore_ratio,
-            seed
+            im_size, n_samples, 1, smooth_sigma, blend, blend_t,
+            min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.scale = scale_ratio
         self.shapes = []
@@ -296,15 +322,17 @@ class ScaleDataset(GeometricDataset):
                 if i < n_samples:
                     # Big sphere
                     self.labels.append(0)
-                    mask = self._sphere_mask(cx, cy, cz, r)
+                    mask, blend_map = self._sphere_mask(cx, cy, cz, r)
                 else:
                     # Small sphere
                     self.labels.append(1)
-                    mask = self._sphere_mask(cx, cy, cz, r / self.scale)
+                    mask, blend_map = self._sphere_mask(cx, cy, cz, r / self.scale)
 
                 background[mask] = foreground[mask]
                 self.masks.append(mask)
-                self.shapes.append(background)
+                self.shapes.append(
+                    (1 - blend_map) * background + blend_map * foreground
+                )
 
     def _coordinates(self):
         x_offset = (2 * np.random.rand(1) - 1) * self.max_x * 0.25
@@ -326,30 +354,31 @@ class ScaleDataset(GeometricDataset):
             )
         else:
             cx, cy, cz, r = self._coordinates()
-            data, foreground = self._gaussian_images()
+            background, foreground = self._gaussian_images()
             if index < (self.len / 2):
                 # Big sphere
                 target_data = np.array(0, dtype=np.float32)
-                mask = self._sphere_mask(cx, cy, cz, r)
+                mask, blend_map = self._sphere_mask(cx, cy, cz, r)
             else:
                 # Small sphere
                 target_data = np.array(1, dtype=np.float32)
-                mask = self._sphere_mask(cx, cy, cz, r / self.scale)
+                mask, blend_map = self._sphere_mask(cx, cy, cz, r / self.scale)
 
-            data[mask] = foreground[mask]
+            data = (1 - blend_map) * background + blend_map * foreground
 
         return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class RotationDataset(GeometricDataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=3,
-            min_back=100, max_back=200, fore_ratio=3, seed=None
+        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
+        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
+        noise_ratio=0.2, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
-            seed
+            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
         self.masks = []
@@ -380,11 +409,13 @@ class RotationDataset(GeometricDataset):
                     angle = np.random.normal(np.pi / 4, np.pi * 0.05)
 
                 x, y, z = self._rotate_grid(cx, cy, cz, angle)
-                mask = self._cube_mask(x, y, z, cx, cy, cz, s)
+                mask, blend_map = self._cube_mask(x, y, z, cx, cy, cz, s)
 
                 background[mask] = foreground[mask]
                 self.masks.append(mask)
-                self.shapes.append(background)
+                self.shapes.append(
+                    (1 - blend_map) * background + blend_map * foreground
+                )
 
     def _rotate_grid(self, x0, y0, z0, angle):
         x_norm = self.x - x0
@@ -407,7 +438,7 @@ class RotationDataset(GeometricDataset):
             )
         else:
             cx, cy, cz, s = self._coordinates()
-            data, foreground = self._gaussian_images()
+            background, foreground = self._gaussian_images()
 
             if index < (self.len / 2):
                 # Normal cube
@@ -419,22 +450,23 @@ class RotationDataset(GeometricDataset):
                 angle = np.random.normal(np.pi / 4, np.pi * 0.01)
 
             x, y, z = self._rotate_grid(cx, cy, cz, angle)
-            mask = self._cube_mask(x, y, z, cx, cy, cz, s)
+            mask, blend_map = self._cube_mask(x, y, z, cx, cy, cz, s)
 
-            data[mask] = foreground[mask]
+            data = (1 - blend_map) * background + blend_map * foreground
 
         return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class GradientDataset(GeometricDataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=2,
-            min_back=100, max_back=200, fore_ratio=3, seed=None
+        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
+        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
+        noise_ratio=0.2, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
-            seed
+            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
         self.masks = []
@@ -468,11 +500,12 @@ class GradientDataset(GeometricDataset):
                         0, np.max(foreground) - (self.max_back - self.min_back)
                     )
 
-                mask = self._sphere_mask(cx, cy, cz, r)
+                mask, blend_map = self._sphere_mask(cx, cy, cz, r)
 
-                background[mask] = foreground[mask]
                 self.masks.append(mask)
-                self.shapes.append(background)
+                self.shapes.append(
+                    (1 - blend_map) * background + blend_map * foreground
+                )
 
     def _gradient(self, cx, cy, cz, r):
         c_dist = (self.x - cx) ** 2 + (self.y - cy) ** 2 + (self.z - cz) ** 2
@@ -489,7 +522,7 @@ class GradientDataset(GeometricDataset):
             )
         else:
             cx, cy, cz, r = self._coordinates()
-            data, foreground = self._gaussian_images()
+            background, foreground = self._gaussian_images()
 
             if index < (self.len / 2):
                 # Normal sphere
@@ -503,22 +536,23 @@ class GradientDataset(GeometricDataset):
                     0, np.max(foreground) - (self.max_back - self.min_back)
                 )
 
-            mask = self._sphere_mask(cx, cy, cz, r)
+            mask, blend_map = self._sphere_mask(cx, cy, cz, r)
 
-            data[mask] = foreground[mask] + data[mask]
+            data = (1 - blend_map) * background + blend_map * foreground
 
         return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class ContrastDataset(GradientDataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=2,
-            min_back=100, max_back=200, fore_ratio=3, seed=None
+        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
+        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
+        noise_ratio=0.2, fore_ratio=3, seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
-            seed
+            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
         self.masks = []
@@ -557,11 +591,13 @@ class ContrastDataset(GradientDataset):
                         0, np.max(foreground) - (self.max_back - self.min_back)
                     )
 
-                mask = self._sphere_mask(cx, cy, cz, r)
+                mask, blend_map = self._sphere_mask(cx, cy, cz, r)
 
                 background[mask] = foreground[mask]
                 self.masks.append(mask)
-                self.shapes.append(background)
+                self.shapes.append(
+                    (1 - blend_map) * background + blend_map * foreground
+                )
 
     def __getitem__(self, index):
         if len(self.shapes) > 0:
@@ -572,7 +608,7 @@ class ContrastDataset(GradientDataset):
             )
         else:
             cx, cy, cz, r = self._coordinates()
-            data, foreground = self._gaussian_images()
+            background, foreground = self._gaussian_images()
             gradient = self._gradient(cx, cy, cz, r)
 
             if index < (self.len / 2):
@@ -590,25 +626,26 @@ class ContrastDataset(GradientDataset):
                     0, np.max(foreground) - (self.max_back - self.min_back)
                 )
 
-            mask = self._sphere_mask(cx, cy, cz, r)
+            mask, blend_map = self._sphere_mask(cx, cy, cz, r)
 
-            data[mask] = foreground[mask] + data[mask]
+            data = (1 - blend_map) * background + blend_map * foreground
 
         return np.expand_dims(data, axis=0).astype(np.float32), target_data
 
 
 class ParcellationDataset(ContrastDataset):
     def __init__(
-            self, im_size, n_samples=1000, scale_ratio=2,
-            min_back=100, max_back=200, fore_ratio=4,
-            sigma=1, alpha=10, seed=None
+        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
+        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
+        noise_ratio=0.2, fore_ratio=3, shape_sigma=1, shape_alpha=10,
+        seed=None
     ):
         # Init
-        self.sigma = sigma
-        self.alpha = alpha
+        self.sigma = shape_sigma
+        self.alpha = shape_alpha
         super().__init__(
-            im_size, n_samples, scale_ratio, min_back, max_back, fore_ratio,
-            seed
+            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            min_back, max_back, noise_ratio, fore_ratio, seed
         )
 
     def _gradient(self, cx, cy, cz, r):
@@ -638,4 +675,3 @@ class ParcellationDataset(ContrastDataset):
             self.sigma, mode='constant', cval=0
         ) * self.alpha
         return self.x + dx, self.y + dy, self.z + dz
-
