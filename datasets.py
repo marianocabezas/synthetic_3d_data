@@ -288,7 +288,7 @@ class LocationDataset(GeometricDataset):
 
 class ScaleDataset(GeometricDataset):
     def __init__(
-        self, im_size, n_samples=1000, scale_ratio=2, smooth_sigma=0,
+        self, im_size, n_samples=1000, scale_ratio=4, smooth_sigma=0,
         blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
         seed=None
     ):
@@ -410,7 +410,6 @@ class RotationDataset(GeometricDataset):
                 x, y, z = self._rotate_grid(cx, cy, cz, angle)
                 mask, blend_map = self._cube_mask(cx, cy, cz, s, x, y, z)
 
-                background[mask] = foreground[mask]
                 self.masks.append(mask)
                 self.shapes.append(
                     (1 - blend_map) * background + blend_map * foreground
