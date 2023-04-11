@@ -408,7 +408,7 @@ class RotationDataset(GeometricDataset):
                     angle = np.random.normal(np.pi / 4, np.pi * 0.05)
 
                 x, y, z = self._rotate_grid(cx, cy, cz, angle)
-                mask, blend_map = self._cube_mask(x, y, z, cx, cy, cz, s)
+                mask, blend_map = self._cube_mask(cx, cy, cz, s, x, y, z)
 
                 background[mask] = foreground[mask]
                 self.masks.append(mask)
@@ -449,7 +449,7 @@ class RotationDataset(GeometricDataset):
                 angle = np.random.normal(np.pi / 4, np.pi * 0.01)
 
             x, y, z = self._rotate_grid(cx, cy, cz, angle)
-            mask, blend_map = self._cube_mask(x, y, z, cx, cy, cz, s)
+            mask, blend_map = self._cube_mask(cx, cy, cz, s, x, y, z)
 
             data = (1 - blend_map) * background + blend_map * foreground
 
