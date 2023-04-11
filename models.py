@@ -79,7 +79,9 @@ class SimpleResNet(BaseModel):
             {
                 'name': 'xentropy',
                 'weight': 1,
-                'f': F.binary_cross_entropy_with_logits
+                'f': lambda p, t: F.binary_cross_entropy_with_logits(
+                    p.flatten(), t
+                )
             }
         ]
 
@@ -87,7 +89,9 @@ class SimpleResNet(BaseModel):
             {
                 'name': 'xent',
                 'weight': 0,
-                'f': F.binary_cross_entropy_with_logits
+                'f': lambda p, t: F.binary_cross_entropy_with_logits(
+                    p.flatten(), t
+                )
             },
             {
                 'name': 'fn',
@@ -133,4 +137,4 @@ class SimpleResNet(BaseModel):
         # final_features = torch.mean(features.flatten(2), dim=2)
         final_features = torch.max(features.flatten(2), dim=2)[0]
         logits = self.classifier(final_features)
-        return logits.flatten()
+        return logits
