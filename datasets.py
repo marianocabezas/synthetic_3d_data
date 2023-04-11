@@ -288,7 +288,7 @@ class LocationDataset(GeometricDataset):
 
 class ScaleDataset(GeometricDataset):
     def __init__(
-        self, im_size, n_samples=1000, scale_ratio=4, smooth_sigma=0,
+        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
         blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
         seed=None
     ):
