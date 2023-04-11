@@ -11,8 +11,8 @@ from utils import time_to_string
 class GeometricDataset(Dataset):
     def __init__(
         self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
-        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
-        noise_ratio=0.2, fore_ratio=3, seed=None
+        blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
+        seed=None
     ):
         self.len = n_samples * 2
         self.max_x, self.max_y, self.max_z = im_size
@@ -20,7 +20,6 @@ class GeometricDataset(Dataset):
         self.min_side = self.max_side / scale_ratio
         self.smooth = smooth_sigma
         self.blend = blend
-        self.temperature = blend_t
         self.min_back = min_back
         self.max_back = max_back
         self.noise = noise_ratio
@@ -124,12 +123,12 @@ class GeometricDataset(Dataset):
 class ShapesDataset(GeometricDataset):
     def __init__(
         self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
-        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
-        noise_ratio=0.2, fore_ratio=3, seed=None
+        blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
+        seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            im_size, n_samples, scale_ratio, smooth_sigma, blend,
             min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
@@ -193,12 +192,12 @@ class ShapesDataset(GeometricDataset):
 class LocationDataset(GeometricDataset):
     def __init__(
         self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
-        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
-        noise_ratio=0.2, fore_ratio=3, seed=None
+        blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
+        seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            im_size, n_samples, scale_ratio, smooth_sigma, blend,
             min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
@@ -289,13 +288,13 @@ class LocationDataset(GeometricDataset):
 
 class ScaleDataset(GeometricDataset):
     def __init__(
-        self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
-        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
-        noise_ratio=0.2, fore_ratio=3, seed=None
+        self, im_size, n_samples=1000, scale_ratio=2, smooth_sigma=0,
+        blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
+        seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, 1, smooth_sigma, blend, blend_t,
+            im_size, n_samples, 1, smooth_sigma, blend,
             min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.scale = scale_ratio
@@ -328,7 +327,6 @@ class ScaleDataset(GeometricDataset):
                     self.labels.append(1)
                     mask, blend_map = self._sphere_mask(cx, cy, cz, r / self.scale)
 
-                background[mask] = foreground[mask]
                 self.masks.append(mask)
                 self.shapes.append(
                     (1 - blend_map) * background + blend_map * foreground
@@ -372,12 +370,12 @@ class ScaleDataset(GeometricDataset):
 class RotationDataset(GeometricDataset):
     def __init__(
         self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
-        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
-        noise_ratio=0.2, fore_ratio=3, seed=None
+        blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
+        seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            im_size, n_samples, scale_ratio, smooth_sigma, blend,
             min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
@@ -461,12 +459,12 @@ class RotationDataset(GeometricDataset):
 class GradientDataset(GeometricDataset):
     def __init__(
         self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
-        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
-        noise_ratio=0.2, fore_ratio=3, seed=None
+        blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
+        seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            im_size, n_samples, scale_ratio, smooth_sigma, blend,
             min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
@@ -548,12 +546,12 @@ class GradientDataset(GeometricDataset):
 class ContrastDataset(GradientDataset):
     def __init__(
         self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
-        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
-        noise_ratio=0.2, fore_ratio=3, seed=None
+        blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
+        seed=None
     ):
         # Init
         super().__init__(
-            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            im_size, n_samples, scale_ratio, smooth_sigma, blend,
             min_back, max_back, noise_ratio, fore_ratio, seed
         )
         self.shapes = []
@@ -639,15 +637,14 @@ class ContrastDataset(GradientDataset):
 class ParcellationDataset(ContrastDataset):
     def __init__(
         self, im_size, n_samples=1000, scale_ratio=3, smooth_sigma=0,
-        blend=0.75, blend_t=1e-2, min_back=100, max_back=200,
-        noise_ratio=0.2, fore_ratio=3, shape_sigma=1, shape_alpha=10,
-        seed=None
+        blend=0.75, min_back=100, max_back=200, noise_ratio=0.2, fore_ratio=3,
+        shape_sigma=1, shape_alpha=10, seed=None
     ):
         # Init
         self.sigma = shape_sigma
         self.alpha = shape_alpha
         super().__init__(
-            im_size, n_samples, scale_ratio, smooth_sigma, blend, blend_t,
+            im_size, n_samples, scale_ratio, smooth_sigma, blend,
             min_back, max_back, noise_ratio, fore_ratio, seed
         )
 
