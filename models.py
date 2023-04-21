@@ -95,17 +95,17 @@ class SimpleResNet(BaseModel):
             },
             {
                 'name': 'fn',
-                'weight': 0.5,
+                'weight': 0,
                 'f': tp_binary_loss
             },
             {
                 'name': 'fp',
-                'weight': 0.5,
+                'weight': 0,
                 'f': tn_binary_loss
             },
             {
                 'name': 'acc',
-                'weight': 0,
+                'weight': 1,
                 'f': accuracy_loss
             },
         ]
